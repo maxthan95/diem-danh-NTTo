@@ -318,6 +318,18 @@
             text-align: center;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
             border-left: 4px solid #4facfe;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        }
+
+        .stats-card.active-filter {
+            border-left-color: #007bff;
+            box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
         }
 
         .stats-card h4 {
@@ -594,7 +606,7 @@
         async function initializeFirebase() {
             try {
                 // Step 1: Authenticate user
-                await signInAnonymously(auth);
+               	await signInAnonymously(auth);
 				console.log("Signed in anonymously.");
 
                 const user = auth.currentUser;
@@ -683,7 +695,9 @@
     </script>
     
     <script>
-        // This script contains the UI logic functions that are now global
+        // --- GLOBAL STATE for UI ---
+        let dailyStatsFilterStatus = 'all'; // 'all', 'present', 'late', etc.
+
         // --- INITIALIZATION ---
         window.onload = function() {
             // Set current date for date pickers
@@ -1054,6 +1068,15 @@
         }
 
         // --- STATISTICS ---
+        window.filterDailyStatsByStatus = function(status) {
+            if (dailyStatsFilterStatus === status) {
+                dailyStatsFilterStatus = 'all';
+            } else {
+                dailyStatsFilterStatus = status;
+            }
+            window.loadDailyStats();
+        }
+
         window.loadDailyStats = function() {
             const selectedDate = document.getElementById('dailyStatsDate').value;
             const selectedClass = document.getElementById('dailyStatsClassFilter').value;
@@ -1064,20 +1087,46 @@
             }
 
             const stats = calculateDayStats(window.attendanceRecords[selectedDate] || {}, filteredStudents);
+            const activeFilterClass = (status) => dailyStatsFilterStatus === status ? 'active-filter' : '';
 
             document.getElementById('dailyStatsGrid').innerHTML = `
-                <div class="stats-card"><h4>Tổng số</h4><div class="number">${stats.total}</div></div>
-                <div class="stats-card"><h4>Có mặt</h4><div class="number" style="color: #28a745;">${stats.present}</div></div>
-                <div class="stats-card"><h4>Đi muộn</h4><div class="number" style="color: #ffc107;">${stats.late}</div></div>
-                <div class="stats-card"><h4>Tổng vắng</h4><div class="number">${stats.absent_total}</div></div>
-                <div class="stats-card"><h4>Vắng KP</h4><div class="number" style="color: #dc3545;">${stats.absent_unexcused}</div></div>
-                <div class="stats-card"><h4>Vắng CP</h4><div class="number" style="color: #6c757d;">${stats.absent_excused}</div></div>
-                <div class="stats-card"><h4>Bán trú vắng KP</h4><div class="number" style="color: #dc3545;">${stats.boarding_absent_unexcused}</div></div>
-                <div class="stats-card"><h4>Bán trú vắng CP</h4><div class="number" style="color: #6c757d;">${stats.boarding_absent_excused}</div></div>
+                <div class="stats-card ${activeFilterClass('all')}" onclick="filterDailyStatsByStatus('all')"><h4>Tổng số</h4><div class="number">${stats.total}</div></div>
+                <div class="stats-card ${activeFilterClass('present')}" onclick="filterDailyStatsByStatus('present')"><h4>Có mặt</h4><div class="number" style="color: #28a745;">${stats.present}</div></div>
+                <div class="stats-card ${activeFilterClass('late')}" onclick="filterDailyStatsByStatus('late')"><h4>Đi muộn</h4><div class="number" style="color: #ffc107;">${stats.late}</div></div>
+                <div class="stats-card ${activeFilterClass('absent_total')}" onclick="filterDailyStatsByStatus('absent_total')"><h4>Tổng vắng</h4><div class="number">${stats.absent_total}</div></div>
+                <div class="stats-card ${activeFilterClass('absent_unexcused')}" onclick="filterDailyStatsByStatus('absent_unexcused')"><h4>Vắng KP</h4><div class="number" style="color: #dc3545;">${stats.absent_unexcused}</div></div>
+                <div class="stats-card ${activeFilterClass('absent_excused')}" onclick="filterDailyStatsByStatus('absent_excused')"><h4>Vắng CP</h4><div class="number" style="color: #6c757d;">${stats.absent_excused}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_absent_unexcused')}" onclick="filterDailyStatsByStatus('boarding_absent_unexcused')"><h4>Bán trú vắng KP</h4><div class="number" style="color: #dc3545;">${stats.boarding_absent_unexcused}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_absent_excused')}" onclick="filterDailyStatsByStatus('boarding_absent_excused')"><h4>Bán trú vắng CP</h4><div class="number" style="color: #6c757d;">${stats.boarding_absent_excused}</div></div>
             `;
 
             const dayRecords = window.attendanceRecords[selectedDate] || {};
-            const detailsHtml = filteredStudents.map(student => {
+            
+            let finalFilteredList = filteredStudents;
+            if (dailyStatsFilterStatus && dailyStatsFilterStatus !== 'all') {
+                finalFilteredList = filteredStudents.filter(student => {
+                    const record = dayRecords[student.id] || {};
+                    const status = record.status || 'present';
+
+                    switch (dailyStatsFilterStatus) {
+                        case 'present':
+                        case 'late':
+                        case 'absent_unexcused':
+                        case 'absent_excused':
+                            return status === dailyStatsFilterStatus;
+                        case 'absent_total':
+                            return status === 'absent_unexcused' || status === 'absent_excused';
+                        case 'boarding_absent_unexcused':
+                            return student.type === 'Bán trú' && status === 'absent_unexcused';
+                        case 'boarding_absent_excused':
+                            return student.type === 'Bán trú' && status === 'absent_excused';
+                        default:
+                            return true;
+                    }
+                });
+            }
+
+            const detailsHtml = finalFilteredList.map(student => {
                 const record = dayRecords[student.id] || {};
                 const status = record.status || 'present';
                 return `
@@ -1388,3 +1437,15 @@
     </script>
 </body>
 </html>
+" and am asking a query about/based on this code below.
+Instructions to follow:
+  * Don't output/edit the document if the query is Direct/Simple. For example, if the query asks for a simple explanation, output a direct answer.
+  * Make sure to **edit** the document if the query shows the intent of editing the document, in which case output the entire edited document, **not just that section or the edits**.
+    * Don't output the same document/empty document and say that you have edited it.
+    * Don't change unrelated code in the document.
+  * Don't output  and  in your final response.
+  * Any references like "this" or "selected code" refers to the code between  and  tags.
+  * Just acknowledge my request in the introduction.
+  * Make sure to refer to the document as "Canvas" in your response.
+
+hãy giúp tôi khi vào phần thống kê hàng ngày khi chọn vào từng mục thống kê sẽ đưa ra cho tôi danh sách học sinh tương 
