@@ -516,7 +516,6 @@
                         <label>Chọn ngày thống kê</label>
                         <input type="date" id="dailyStatsDate" onchange="loadDailyStats()">
                     </div>
-                    <!-- MODIFIED: Added class filter for daily stats -->
                     <div class="form-group">
                         <label for="dailyStatsClassFilter">Chọn lớp</label>
                         <select id="dailyStatsClassFilter" onchange="loadDailyStats()"></select>
@@ -597,6 +596,7 @@
                 // Step 1: Authenticate user
                 await signInAnonymously(auth);
 				console.log("Signed in anonymously.");
+
                 const user = auth.currentUser;
                 if (!user) {
                     throw new Error("Authentication failed, user is null.");
@@ -620,6 +620,7 @@
                         window.attendanceRecords = {};
                         saveData(); 
                     }
+                    window.students.sort((a, b) => a.class.localeCompare(b.class, 'vi') || a.name.localeCompare(b.name, 'vi'));
                     updateAllUI();
                 }, (error) => {
                     console.error("Error listening to data:", error);
@@ -853,7 +854,8 @@
                 }
             });
             
-            window.autoSave(); // Save changes to Firestore
+            window.students.sort((a, b) => a.class.localeCompare(b.class, 'vi') || a.name.localeCompare(b.name, 'vi'));
+            window.autoSave();
             
             document.getElementById('excelFile').value = '';
             window.excelData = [];
@@ -885,6 +887,7 @@
             }
 
             window.students.push({ id: Date.now(), name, class: studentClass, birthDate, gender, type });
+            window.students.sort((a, b) => a.class.localeCompare(b.class, 'vi') || a.name.localeCompare(b.name, 'vi'));
             clearStudentForm();
             window.autoSave();
         }
@@ -987,7 +990,8 @@
 
             const dayRecords = window.attendanceRecords[selectedDate] || {};
             container.innerHTML = filteredStudents.map(student => {
-                const status = dayRecords[student.id] || 'present';
+                const record = dayRecords[student.id] || {};
+                const status = record.status || 'present';
                 return `
                     <div class="student-item">
                         <div class="student-info">
@@ -1013,7 +1017,10 @@
             if (!window.attendanceRecords[selectedDate]) {
                 window.attendanceRecords[selectedDate] = {};
             }
-            window.attendanceRecords[selectedDate][studentId] = status;
+            window.attendanceRecords[selectedDate][studentId] = {
+                status: status,
+                timestamp: new Date().toISOString()
+            };
             window.autoSave();
         }
 
@@ -1034,8 +1041,12 @@
             if (!window.attendanceRecords[selectedDate]) {
                 window.attendanceRecords[selectedDate] = {};
             }
+            const timestamp = new Date().toISOString();
             studentsToMark.forEach(student => {
-                window.attendanceRecords[selectedDate][student.id] = 'present';
+                window.attendanceRecords[selectedDate][student.id] = {
+                    status: 'present',
+                    timestamp: timestamp
+                };
             });
             
             window.autoSave();
@@ -1067,7 +1078,8 @@
 
             const dayRecords = window.attendanceRecords[selectedDate] || {};
             const detailsHtml = filteredStudents.map(student => {
-                const status = dayRecords[student.id] || 'present';
+                const record = dayRecords[student.id] || {};
+                const status = record.status || 'present';
                 return `
                     <div class="student-item">
                         <div class="student-info">
@@ -1148,6 +1160,16 @@
                 return dateString;
             }
         }
+        
+        function formatTimestamp(isoString) {
+            if (!isoString) return '';
+            try {
+                const date = new Date(isoString);
+                return date.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            } catch (e) {
+                return '';
+            }
+        }
 
         function calculateDayStats(dayRecords, studentList) {
             const stats = { 
@@ -1161,7 +1183,8 @@
                 boarding_absent_excused: 0
             };
             studentList.forEach(student => {
-                const status = dayRecords[student.id] || 'present';
+                const record = dayRecords[student.id] || {};
+                const status = record.status || 'present';
                 if(stats.hasOwnProperty(status)) {
                     stats[status]++;
                 }
@@ -1195,7 +1218,8 @@
                     const dayRecords = window.attendanceRecords[dateStr] || {};
                     window.students.forEach(student => {
                         if (studentData[student.id]) {
-                            const status = dayRecords[student.id] || 'present';
+                            const record = dayRecords[student.id] || {};
+                            const status = record.status || 'present';
                             if(studentData[student.id].hasOwnProperty(status)){
                                 studentData[student.id][status]++;
                             }
@@ -1226,17 +1250,21 @@
         window.exportAttendanceToExcel = function() {
             const selectedDate = document.getElementById('attendanceDate').value;
             const dayRecords = window.attendanceRecords[selectedDate] || {};
-            const data = window.students.map((s, i) => ({
-                'STT': i + 1,
-                'Họ và tên': s.name,
-                'Lớp': s.class,
-                'Ngày sinh': formatDate(s.birthDate),
-                'Giới tính': s.gender,
-                'Loại học sinh': s.type,
-                'Trạng thái': getStatusText(dayRecords[s.id] || 'present')
-            }));
+            const data = window.students.map((s, i) => {
+                const record = dayRecords[s.id] || {};
+                return {
+                    'STT': i + 1,
+                    'Họ và tên': s.name,
+                    'Lớp': s.class,
+                    'Ngày sinh': formatDate(s.birthDate),
+                    'Giới tính': s.gender,
+                    'Loại học sinh': s.type,
+                    'Trạng thái': getStatusText(record.status || 'present'),
+                    'Thời gian cập nhật': formatTimestamp(record.timestamp)
+                };
+            });
             const ws = XLSX.utils.json_to_sheet(data);
-            ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
+            ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "DiemDanh");
             XLSX.writeFile(wb, `Diem_danh_${selectedDate}.xlsx`);
@@ -1285,17 +1313,21 @@
             XLSX.utils.book_append_sheet(wb, ws1, "Tổng quan");
 
             // Detail Sheet
-            const detailData = filteredStudents.map((student, index) => ({
-                'STT': index + 1,
-                'Họ và tên': student.name,
-                'Lớp': student.class,
-                'Ngày sinh': formatDate(student.birthDate),
-                'Giới tính': student.gender,
-                'Loại học sinh': student.type,
-                'Trạng thái': getStatusText(dayRecords[student.id] || 'present')
-            }));
+            const detailData = filteredStudents.map((student, index) => {
+                const record = dayRecords[student.id] || {};
+                return {
+                    'STT': index + 1,
+                    'Họ và tên': student.name,
+                    'Lớp': student.class,
+                    'Ngày sinh': formatDate(student.birthDate),
+                    'Giới tính': student.gender,
+                    'Loại học sinh': student.type,
+                    'Trạng thái': getStatusText(record.status || 'present'),
+                    'Thời gian cập nhật': formatTimestamp(record.timestamp)
+                };
+            });
             const ws2 = XLSX.utils.json_to_sheet(detailData);
-             ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
+             ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }];
             XLSX.utils.book_append_sheet(wb, ws2, "Chi tiết");
 
             XLSX.writeFile(wb, `Thong_ke_ngay_${selectedDate}_${selectedClass}.xlsx`);
