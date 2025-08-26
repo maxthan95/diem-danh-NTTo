@@ -516,6 +516,11 @@
                         <label>Chọn ngày thống kê</label>
                         <input type="date" id="dailyStatsDate" onchange="loadDailyStats()">
                     </div>
+                    <!-- MODIFIED: Added class filter for daily stats -->
+                    <div class="form-group">
+                        <label for="dailyStatsClassFilter">Chọn lớp</label>
+                        <select id="dailyStatsClassFilter" onchange="loadDailyStats()"></select>
+                    </div>
                     <div class="form-group">
                         <button class="btn btn-info" onclick="loadDailyStats()">📊 Xem thống kê</button>
                         <button class="btn btn-success" onclick="exportDailyStatsToExcel()">📁 Xuất Excel</button>
@@ -564,7 +569,7 @@
     		messagingSenderId: "474588160188",
     		appId: "1:474588160188:web:37a1b187369ff47e56f0b9",
     		measurementId: "G-CYHW7NZKGM"
-  	};
+  		};
         
         let db;
         let auth;
@@ -590,9 +595,8 @@
         async function initializeFirebase() {
             try {
                 // Step 1: Authenticate user
-		await signInAnonymously(auth);
-		console.log("Signed in anonymously.");
-
+                await signInAnonymously(auth);
+				console.log("Signed in anonymously.");
                 const user = auth.currentUser;
                 if (!user) {
                     throw new Error("Authentication failed, user is null.");
@@ -942,18 +946,23 @@
 
         // --- ATTENDANCE TRACKING ---
         window.populateClassFilter = function() {
-            const classFilter = document.getElementById('classFilter');
+            const attendanceFilter = document.getElementById('classFilter');
+            const statsFilter = document.getElementById('dailyStatsClassFilter');
             const uniqueClasses = [...new Set(window.students.map(s => s.class))].sort();
             
-            const currentSelection = classFilter.value;
+            const currentAttendanceSelection = attendanceFilter.value;
+            const currentStatsSelection = statsFilter.value;
 
-            classFilter.innerHTML = '<option value="all">Tất cả các lớp</option>';
-            uniqueClasses.forEach(className => {
-                classFilter.innerHTML += `<option value="${className}">${className}</option>`;
-            });
+            const optionsHtml = '<option value="all">Tất cả các lớp</option>' + uniqueClasses.map(className => `<option value="${className}">${className}</option>`).join('');
 
-            if (uniqueClasses.includes(currentSelection)) {
-                classFilter.value = currentSelection;
+            attendanceFilter.innerHTML = optionsHtml;
+            statsFilter.innerHTML = optionsHtml;
+            
+            if ([...attendanceFilter.options].some(o => o.value === currentAttendanceSelection)) {
+                attendanceFilter.value = currentAttendanceSelection;
+            }
+             if ([...statsFilter.options].some(o => o.value === currentStatsSelection)) {
+                statsFilter.value = currentStatsSelection;
             }
         }
 
@@ -1036,7 +1045,14 @@
         // --- STATISTICS ---
         window.loadDailyStats = function() {
             const selectedDate = document.getElementById('dailyStatsDate').value;
-            const stats = calculateDayStats(window.attendanceRecords[selectedDate] || {});
+            const selectedClass = document.getElementById('dailyStatsClassFilter').value;
+
+            let filteredStudents = window.students;
+            if (selectedClass && selectedClass !== 'all') {
+                filteredStudents = window.students.filter(student => student.class === selectedClass);
+            }
+
+            const stats = calculateDayStats(window.attendanceRecords[selectedDate] || {}, filteredStudents);
 
             document.getElementById('dailyStatsGrid').innerHTML = `
                 <div class="stats-card"><h4>Tổng số</h4><div class="number">${stats.total}</div></div>
@@ -1050,7 +1066,7 @@
             `;
 
             const dayRecords = window.attendanceRecords[selectedDate] || {};
-            const detailsHtml = window.students.map(student => {
+            const detailsHtml = filteredStudents.map(student => {
                 const status = dayRecords[student.id] || 'present';
                 return `
                     <div class="student-item">
@@ -1063,7 +1079,12 @@
                         </div>
                     </div>`;
             }).join('');
-            document.getElementById('dailyStatsList').innerHTML = `<h3>Chi tiết ngày ${formatDate(selectedDate)}</h3>${detailsHtml}`;
+            
+            let title = `<h3>Chi tiết ngày ${formatDate(selectedDate)}</h3>`;
+            if (selectedClass && selectedClass !== 'all') {
+                title = `<h3>Chi tiết lớp ${selectedClass} - Ngày ${formatDate(selectedDate)}</h3>`;
+            }
+            document.getElementById('dailyStatsList').innerHTML = title + detailsHtml;
         }
 
         window.loadMonthlyStats = function() {
@@ -1128,9 +1149,9 @@
             }
         }
 
-        function calculateDayStats(dayRecords) {
+        function calculateDayStats(dayRecords, studentList) {
             const stats = { 
-                total: window.students.length, 
+                total: studentList.length, 
                 present: 0, 
                 late: 0, 
                 absent_unexcused: 0, 
@@ -1139,7 +1160,7 @@
                 boarding_absent_unexcused: 0,
                 boarding_absent_excused: 0
             };
-            window.students.forEach(student => {
+            studentList.forEach(student => {
                 const status = dayRecords[student.id] || 'present';
                 if(stats.hasOwnProperty(status)) {
                     stats[status]++;
@@ -1223,12 +1244,23 @@
         
         window.exportDailyStatsToExcel = function() {
             const selectedDate = document.getElementById('dailyStatsDate').value;
+            const selectedClass = document.getElementById('dailyStatsClassFilter').value;
             if (!selectedDate) {
                 alert('Vui lòng chọn ngày để xuất thống kê!');
                 return;
             }
 
-            const stats = calculateDayStats(window.attendanceRecords[selectedDate] || {});
+            let filteredStudents = window.students;
+            if (selectedClass && selectedClass !== 'all') {
+                filteredStudents = window.students.filter(student => student.class === selectedClass);
+            }
+            
+            if (filteredStudents.length === 0) {
+                alert('Không có học sinh trong lớp đã chọn để xuất báo cáo.');
+                return;
+            }
+
+            const stats = calculateDayStats(window.attendanceRecords[selectedDate] || {}, filteredStudents);
             const dayRecords = window.attendanceRecords[selectedDate] || {};
 
             const wb = XLSX.utils.book_new();
@@ -1236,6 +1268,7 @@
             // Summary Sheet
             const summaryData = [
                 ["Thống kê tổng quan ngày", formatDate(selectedDate)],
+                ["Lớp", selectedClass === 'all' ? 'Tất cả' : selectedClass],
                 [],
                 ["Hạng mục", "Số lượng"],
                 ["Tổng số học sinh", stats.total],
@@ -1252,7 +1285,7 @@
             XLSX.utils.book_append_sheet(wb, ws1, "Tổng quan");
 
             // Detail Sheet
-            const detailData = window.students.map((student, index) => ({
+            const detailData = filteredStudents.map((student, index) => ({
                 'STT': index + 1,
                 'Họ và tên': student.name,
                 'Lớp': student.class,
@@ -1265,7 +1298,7 @@
              ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
             XLSX.utils.book_append_sheet(wb, ws2, "Chi tiết");
 
-            XLSX.writeFile(wb, `Thong_ke_ngay_${selectedDate}.xlsx`);
+            XLSX.writeFile(wb, `Thong_ke_ngay_${selectedDate}_${selectedClass}.xlsx`);
         }
 
         window.exportMonthlyStatsToExcel = function() {
