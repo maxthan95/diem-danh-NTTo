@@ -1058,6 +1058,8 @@
                 <div class="stats-card ${activeFilterClass('absent_total')}" onclick="filterDailyStatsByStatus('absent_total')"><h4>Tổng vắng</h4><div class="number">${stats.absent_total}</div></div>
                 <div class="stats-card ${activeFilterClass('absent_unexcused')}" onclick="filterDailyStatsByStatus('absent_unexcused')"><h4>Vắng KP</h4><div class="number" style="color: #dc3545;">${stats.absent_unexcused}</div></div>
                 <div class="stats-card ${activeFilterClass('absent_excused')}" onclick="filterDailyStatsByStatus('absent_excused')"><h4>Vắng CP</h4><div class="number" style="color: #6c757d;">${stats.absent_excused}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_absent_unexcused')}" onclick="filterDailyStatsByStatus('boarding_absent_unexcused')"><h4>Bán trú vắng KP</h4><div class="number" style="color: #dc3545;">${stats.boarding_absent_unexcused}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_absent_excused')}" onclick="filterDailyStatsByStatus('boarding_absent_excused')"><h4>Bán trú vắng CP</h4><div class="number" style="color: #6c757d;">${stats.boarding_absent_excused}</div></div>
             `;
 
             const dayRecords = window.attendanceRecords[selectedDate] || {};
@@ -1069,10 +1071,21 @@
                     const record = dayRecords[student.id] || {};
                     const status = record.status || 'present';
 
-                    if (dailyStatsFilterStatus === 'absent_total') {
-                        return status === 'absent_unexcused' || status === 'absent_excused';
+                    switch (dailyStatsFilterStatus) {
+                        case 'present':
+                        case 'late':
+                        case 'absent_unexcused':
+                        case 'absent_excused':
+                            return status === dailyStatsFilterStatus;
+                        case 'absent_total':
+                            return status === 'absent_unexcused' || status === 'absent_excused';
+                        case 'boarding_absent_unexcused':
+                            return student.type === 'Bán trú' && status === 'absent_unexcused';
+                        case 'boarding_absent_excused':
+                            return student.type === 'Bán trú' && status === 'absent_excused';
+                        default:
+                            return true;
                     }
-                    return status === dailyStatsFilterStatus;
                 });
             }
 
@@ -1109,6 +1122,8 @@
                 <div class="stats-card"><h4>Tổng lượt muộn</h4><div class="number" style="color: #ffc107;">${stats.totalLate}</div></div>
                 <div class="stats-card"><h4>Tổng vắng KP</h4><div class="number" style="color: #dc3545;">${stats.totalAbsentUnexcused}</div></div>
                 <div class="stats-card"><h4>Tổng vắng CP</h4><div class="number" style="color: #6c757d;">${stats.totalAbsentExcused}</div></div>
+                <div class="stats-card"><h4>Bán trú vắng KP</h4><div class="number" style="color: #dc3545;">${stats.totalBoardingAbsentUnexcused}</div></div>
+                <div class="stats-card"><h4>Bán trú vắng CP</h4><div class="number" style="color: #6c757d;">${stats.totalBoardingAbsentExcused}</div></div>
             `;
 
             const detailsHtml = Object.values(stats.studentData).map(data => {
@@ -1176,12 +1191,21 @@
                 absent_unexcused: 0, 
                 absent_excused: 0,
                 absent_total: 0,
+                boarding_absent_unexcused: 0,
+                boarding_absent_excused: 0
             };
             studentList.forEach(student => {
                 const record = dayRecords[student.id] || {};
                 const status = record.status || 'present';
                 if(stats.hasOwnProperty(status)) {
                     stats[status]++;
+                }
+                if (student.type === 'Bán trú') {
+                    if (status === 'absent_unexcused') {
+                        stats.boarding_absent_unexcused++;
+                    } else if (status === 'absent_excused') {
+                        stats.boarding_absent_excused++;
+                    }
                 }
             });
             stats.absent_total = stats.absent_unexcused + stats.absent_excused;
@@ -1217,14 +1241,21 @@
             }
             
             let totalPresent = 0, totalLate = 0, totalAbsentUnexcused = 0, totalAbsentExcused = 0;
+            let totalBoardingAbsentUnexcused = 0, totalBoardingAbsentExcused = 0;
+
             Object.values(studentData).forEach(data => {
                 totalPresent += data.present;
                 totalLate += data.late;
                 totalAbsentUnexcused += data.absent_unexcused;
                 totalAbsentExcused += data.absent_excused;
+
+                if (data.student.type === 'Bán trú') {
+                    totalBoardingAbsentUnexcused += data.absent_unexcused;
+                    totalBoardingAbsentExcused += data.absent_excused;
+                }
             });
 
-            return { studentData, totalPresent, totalLate, totalAbsentUnexcused, totalAbsentExcused };
+            return { studentData, totalPresent, totalLate, totalAbsentUnexcused, totalAbsentExcused, totalBoardingAbsentUnexcused, totalBoardingAbsentExcused };
         }
 
         // --- EXPORT TO EXCEL FUNCTIONS ---
@@ -1286,6 +1317,8 @@
                 ["Vắng không phép (KP)", stats.absent_unexcused],
                 ["Vắng có phép (CP)", stats.absent_excused],
                 ["Tổng số vắng", stats.absent_total],
+                ["Học sinh bán trú vắng KP", stats.boarding_absent_unexcused],
+                ["Học sinh bán trú vắng CP", stats.boarding_absent_excused]
             ];
             const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
             ws1['!cols'] = [{ wch: 25 }, { wch: 15 }];
@@ -1333,6 +1366,8 @@
                 ["Tổng lượt đi muộn", stats.totalLate],
                 ["Tổng lượt vắng không phép (KP)", stats.totalAbsentUnexcused],
                 ["Tổng lượt vắng có phép (CP)", stats.totalAbsentExcused],
+                ["Tổng lượt bán trú vắng KP", stats.totalBoardingAbsentUnexcused],
+                ["Tổng lượt bán trú vắng CP", stats.totalBoardingAbsentExcused]
             ];
             const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
             ws1['!cols'] = [{ wch: 35 }, { wch: 15 }];
