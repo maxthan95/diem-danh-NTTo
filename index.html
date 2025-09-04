@@ -328,8 +328,10 @@
         }
 
         .stats-card.active-filter {
+            border-left-width: 6px;
             border-left-color: #007bff;
             box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
+            transform: translateY(-2px);
         }
 
         .stats-card h4 {
@@ -425,7 +427,6 @@
             <button class="tab" onclick="showTab('monthly-stats')">📈 Thống kê hàng tháng</button>
         </div>
 
-        <!-- Student Management Tab -->
         <div id="students" class="tab-content active">
             <div class="form-section">
                 <h3>📁 Nhập danh sách từ Excel</h3>
@@ -492,7 +493,6 @@
             </div>
         </div>
 
-        <!-- Attendance Tab -->
         <div id="attendance" class="tab-content">
             <div class="quick-actions">
                 <button class="btn btn-success" onclick="markAllPresent()">✅ Tất cả có mặt</button>
@@ -520,7 +520,6 @@
             </div>
         </div>
 
-        <!-- Daily Stats Tab -->
         <div id="daily-stats" class="tab-content">
             <div class="date-filter">
                 <div class="filter-row">
@@ -543,7 +542,6 @@
             <div class="student-list" id="dailyStatsList"></div>
         </div>
 
-        <!-- Monthly Stats Tab -->
         <div id="monthly-stats" class="tab-content">
             <div class="date-filter">
                 <div class="filter-row">
@@ -563,12 +561,11 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
     <script type="module">
         // Import Firebase modules
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // --- GLOBAL VARIABLES ---
         const appId = 'diem-danh-NTTo';
@@ -718,6 +715,19 @@
             document.getElementById(tabName).classList.add('active');
             event.currentTarget.classList.add('active');
         }
+        
+        // --- ADMIN PASSWORD CHECK ---
+        function checkAdminPassword() {
+            // Đây là mật khẩu mặc định, bạn CÓ THỂ THAY ĐỔI nó.
+            const adminPassword = "admin"; 
+            const enteredPassword = prompt("Vui lòng nhập mật khẩu quản trị để thực hiện hành động này:", "");
+            if (enteredPassword === adminPassword) {
+                return true;
+            } else if (enteredPassword !== null) { // User didn't click cancel
+                alert("Mật khẩu không chính xác!");
+            }
+            return false;
+        }
 
         // --- UI NOTIFICATIONS ---
         window.showSaveNotification = function(message, type = 'info', duration = 3000) {
@@ -850,6 +860,7 @@
         }
 
         window.importStudentsFromExcel = function() {
+            if (!checkAdminPassword()) return;
             if (window.excelData.length === 0) {
                 alert('Vui lòng tải file Excel trước!');
                 return;
@@ -889,6 +900,7 @@
 
         // --- STUDENT MANAGEMENT ---
         window.addStudent = function() {
+            if (!checkAdminPassword()) return;
             const name = document.getElementById('studentName').value.trim();
             const studentClass = document.getElementById('studentClass').value.trim();
             const birthDate = document.getElementById('studentBirthDate').value;
@@ -938,6 +950,7 @@
         }
 
         window.deleteStudent = function(id) {
+            if (!checkAdminPassword()) return;
             if (confirm('Bạn có chắc chắn muốn xóa học sinh này?')) {
                 window.students = window.students.filter(s => s.id !== id);
                 window.autoSave();
@@ -945,6 +958,7 @@
         }
 
         window.editStudent = function(id) {
+            if (!checkAdminPassword()) return;
             const student = window.students.find(s => s.id === id);
             if (!student) return;
 
@@ -958,14 +972,14 @@
             window.autoSave();
             
             alert('Thông tin học sinh đã được tải lên form. Chỉnh sửa và nhấn "Thêm học sinh" để lưu lại.');
-            document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
+            document.querySelector('#students .form-section').scrollIntoView({ behavior: 'smooth' });
         }
 
         // --- ATTENDANCE TRACKING ---
         window.populateClassFilter = function() {
             const attendanceFilter = document.getElementById('classFilter');
             const statsFilter = document.getElementById('dailyStatsClassFilter');
-            const uniqueClasses = [...new Set(window.students.map(s => s.class))].sort();
+            const uniqueClasses = [...new Set(window.students.map(s => s.class))].sort((a,b) => a.localeCompare(b, 'vi'));
             
             const currentAttendanceSelection = attendanceFilter.value;
             const currentStatsSelection = statsFilter.value;
@@ -1070,11 +1084,11 @@
         // --- STATISTICS ---
         window.filterDailyStatsByStatus = function(status) {
             if (dailyStatsFilterStatus === status) {
-                dailyStatsFilterStatus = 'all';
+                dailyStatsFilterStatus = 'all'; // Toggle off if clicked again
             } else {
                 dailyStatsFilterStatus = status;
             }
-            window.loadDailyStats();
+            window.loadDailyStats(); // Refresh the view with the new filter
         }
 
         window.loadDailyStats = function() {
@@ -1096,33 +1110,21 @@
                 <div class="stats-card ${activeFilterClass('absent_total')}" onclick="filterDailyStatsByStatus('absent_total')"><h4>Tổng vắng</h4><div class="number">${stats.absent_total}</div></div>
                 <div class="stats-card ${activeFilterClass('absent_unexcused')}" onclick="filterDailyStatsByStatus('absent_unexcused')"><h4>Vắng KP</h4><div class="number" style="color: #dc3545;">${stats.absent_unexcused}</div></div>
                 <div class="stats-card ${activeFilterClass('absent_excused')}" onclick="filterDailyStatsByStatus('absent_excused')"><h4>Vắng CP</h4><div class="number" style="color: #6c757d;">${stats.absent_excused}</div></div>
-                <div class="stats-card ${activeFilterClass('boarding_absent_unexcused')}" onclick="filterDailyStatsByStatus('boarding_absent_unexcused')"><h4>Bán trú vắng KP</h4><div class="number" style="color: #dc3545;">${stats.boarding_absent_unexcused}</div></div>
-                <div class="stats-card ${activeFilterClass('boarding_absent_excused')}" onclick="filterDailyStatsByStatus('boarding_absent_excused')"><h4>Bán trú vắng CP</h4><div class="number" style="color: #6c757d;">${stats.boarding_absent_excused}</div></div>
             `;
 
             const dayRecords = window.attendanceRecords[selectedDate] || {};
             
             let finalFilteredList = filteredStudents;
+            // Filter the list for display based on the selected status
             if (dailyStatsFilterStatus && dailyStatsFilterStatus !== 'all') {
                 finalFilteredList = filteredStudents.filter(student => {
                     const record = dayRecords[student.id] || {};
                     const status = record.status || 'present';
 
-                    switch (dailyStatsFilterStatus) {
-                        case 'present':
-                        case 'late':
-                        case 'absent_unexcused':
-                        case 'absent_excused':
-                            return status === dailyStatsFilterStatus;
-                        case 'absent_total':
-                            return status === 'absent_unexcused' || status === 'absent_excused';
-                        case 'boarding_absent_unexcused':
-                            return student.type === 'Bán trú' && status === 'absent_unexcused';
-                        case 'boarding_absent_excused':
-                            return student.type === 'Bán trú' && status === 'absent_excused';
-                        default:
-                            return true;
+                    if (dailyStatsFilterStatus === 'absent_total') {
+                        return status === 'absent_unexcused' || status === 'absent_excused';
                     }
+                    return status === dailyStatsFilterStatus;
                 });
             }
 
@@ -1139,7 +1141,7 @@
                             </div>
                         </div>
                     </div>`;
-            }).join('');
+            }).join('') || `<div class="empty-state"><p>Không có học sinh nào phù hợp với bộ lọc.</p></div>`;
             
             let title = `<h3>Chi tiết ngày ${formatDate(selectedDate)}</h3>`;
             if (selectedClass && selectedClass !== 'all') {
@@ -1159,8 +1161,6 @@
                 <div class="stats-card"><h4>Tổng lượt muộn</h4><div class="number" style="color: #ffc107;">${stats.totalLate}</div></div>
                 <div class="stats-card"><h4>Tổng vắng KP</h4><div class="number" style="color: #dc3545;">${stats.totalAbsentUnexcused}</div></div>
                 <div class="stats-card"><h4>Tổng vắng CP</h4><div class="number" style="color: #6c757d;">${stats.totalAbsentExcused}</div></div>
-                <div class="stats-card"><h4>Bán trú vắng KP</h4><div class="number" style="color: #dc3545;">${stats.totalBoardingAbsentUnexcused}</div></div>
-                <div class="stats-card"><h4>Bán trú vắng CP</h4><div class="number" style="color: #6c757d;">${stats.totalBoardingAbsentExcused}</div></div>
             `;
 
             const detailsHtml = Object.values(stats.studentData).map(data => {
@@ -1228,21 +1228,12 @@
                 absent_unexcused: 0, 
                 absent_excused: 0,
                 absent_total: 0,
-                boarding_absent_unexcused: 0,
-                boarding_absent_excused: 0
             };
             studentList.forEach(student => {
                 const record = dayRecords[student.id] || {};
                 const status = record.status || 'present';
                 if(stats.hasOwnProperty(status)) {
                     stats[status]++;
-                }
-                if (student.type === 'Bán trú') {
-                    if (status === 'absent_unexcused') {
-                        stats.boarding_absent_unexcused++;
-                    } else if (status === 'absent_excused') {
-                        stats.boarding_absent_excused++;
-                    }
                 }
             });
             stats.absent_total = stats.absent_unexcused + stats.absent_excused;
@@ -1262,7 +1253,7 @@
                 const currentDate = new Date(year, month - 1, day);
                 const dayOfWeek = currentDate.getDay();
 
-                if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Only count weekdays
                     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const dayRecords = window.attendanceRecords[dateStr] || {};
                     window.students.forEach(student => {
@@ -1278,21 +1269,14 @@
             }
             
             let totalPresent = 0, totalLate = 0, totalAbsentUnexcused = 0, totalAbsentExcused = 0;
-            let totalBoardingAbsentUnexcused = 0, totalBoardingAbsentExcused = 0;
-
             Object.values(studentData).forEach(data => {
                 totalPresent += data.present;
                 totalLate += data.late;
                 totalAbsentUnexcused += data.absent_unexcused;
                 totalAbsentExcused += data.absent_excused;
-
-                if (data.student.type === 'Bán trú') {
-                    totalBoardingAbsentUnexcused += data.absent_unexcused;
-                    totalBoardingAbsentExcused += data.absent_excused;
-                }
             });
 
-            return { studentData, totalPresent, totalLate, totalAbsentUnexcused, totalAbsentExcused, totalBoardingAbsentUnexcused, totalBoardingAbsentExcused };
+            return { studentData, totalPresent, totalLate, totalAbsentUnexcused, totalAbsentExcused };
         }
 
         // --- EXPORT TO EXCEL FUNCTIONS ---
@@ -1354,8 +1338,6 @@
                 ["Vắng không phép (KP)", stats.absent_unexcused],
                 ["Vắng có phép (CP)", stats.absent_excused],
                 ["Tổng số vắng", stats.absent_total],
-                ["Học sinh bán trú vắng KP", stats.boarding_absent_unexcused],
-                ["Học sinh bán trú vắng CP", stats.boarding_absent_excused]
             ];
             const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
             ws1['!cols'] = [{ wch: 25 }, { wch: 15 }];
@@ -1403,8 +1385,6 @@
                 ["Tổng lượt đi muộn", stats.totalLate],
                 ["Tổng lượt vắng không phép (KP)", stats.totalAbsentUnexcused],
                 ["Tổng lượt vắng có phép (CP)", stats.totalAbsentExcused],
-                ["Tổng lượt bán trú vắng KP", stats.totalBoardingAbsentUnexcused],
-                ["Tổng lượt bán trú vắng CP", stats.totalBoardingAbsentExcused]
             ];
             const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
             ws1['!cols'] = [{ wch: 35 }, { wch: 15 }];
@@ -1437,15 +1417,3 @@
     </script>
 </body>
 </html>
-" and am asking a query about/based on this code below.
-Instructions to follow:
-  * Don't output/edit the document if the query is Direct/Simple. For example, if the query asks for a simple explanation, output a direct answer.
-  * Make sure to **edit** the document if the query shows the intent of editing the document, in which case output the entire edited document, **not just that section or the edits**.
-    * Don't output the same document/empty document and say that you have edited it.
-    * Don't change unrelated code in the document.
-  * Don't output  and  in your final response.
-  * Any references like "this" or "selected code" refers to the code between  and  tags.
-  * Just acknowledge my request in the introduction.
-  * Make sure to refer to the document as "Canvas" in your response.
-
-hãy giúp tôi khi vào phần thống kê hàng ngày khi chọn vào từng mục thống kê sẽ đưa ra cho tôi danh sách học sinh tương 
