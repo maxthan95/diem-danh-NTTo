@@ -1025,6 +1025,7 @@
                         <div class="student-info">
                             <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
                             <div class="student-detail"><strong>Lớp:</strong><span>${student.class}</span></div>
+                            <div class="student-detail"><strong>Ngày sinh:</strong><span>${formatDate(student.birthDate)}</span></div>
                             <div class="student-detail"><strong>Trạng thái:</strong>
                                 <span class="attendance-status ${getStatusClass(status)}">${getStatusText(status)}</span>
                             </div>
