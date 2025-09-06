@@ -859,7 +859,7 @@
             let addedCount = 0, duplicateCount = 0;
             window.excelData.forEach(studentData => {
                 if (!studentData.name || !studentData.class) return;
-                // **MODIFIED DUPLICATE LOGIC**: Check name, class, AND birthDate
+                // **CORRECTED DUPLICATE LOGIC**: Check name, class, AND birthDate
                 const isDuplicate = window.students.some(s => 
                     s.name.toLowerCase() === studentData.name.toLowerCase() && 
                     s.class.toLowerCase() === studentData.class.toLowerCase() &&
