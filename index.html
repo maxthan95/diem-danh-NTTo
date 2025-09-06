@@ -208,6 +208,20 @@
             margin: 0;
             font-size: 1.3rem;
         }
+        
+        .student-list-header .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .student-list-header .header-controls label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
 
 
         .student-item {
@@ -449,7 +463,13 @@
             <div class="student-list">
                 <div class="student-list-header">
                     <h3>📋 Danh sách học sinh</h3>
-                    <button class="btn btn-danger" style="width: auto; padding: 8px 15px;" onclick="deleteSelectedStudents()">🗑️ Xóa đã chọn</button>
+                    <div class="header-controls">
+                        <label>
+                            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)" style="transform: scale(1.5);">
+                            Chọn tất cả
+                        </label>
+                        <button class="btn btn-danger" style="width: auto; padding: 8px 15px;" onclick="deleteSelectedStudents()">🗑️ Xóa đã chọn</button>
+                    </div>
                 </div>
                 <div id="studentsList"></div>
             </div>
@@ -903,6 +923,7 @@
 
         window.displayStudents = function() {
             const container = document.getElementById('studentsList');
+             document.getElementById('selectAllCheckbox').checked = false; // Uncheck select all
             if (window.students.length === 0) {
                 container.innerHTML = `<div class="empty-state"><h3>Chưa có học sinh nào</h3><p>Vui lòng thêm học sinh để bắt đầu.</p></div>`;
                 return;
@@ -926,6 +947,14 @@
                 </div>
             `).join('');
         }
+        
+        window.toggleSelectAll = function(checked) {
+            const studentCheckboxes = document.querySelectorAll('.student-checkbox');
+            studentCheckboxes.forEach(checkbox => {
+                checkbox.checked = checked;
+            });
+        }
+
         
         window.deleteSelectedStudents = function() {
             if (!checkAdminPassword()) return;
