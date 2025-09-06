@@ -763,7 +763,8 @@
                 try {
                     const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    // **MODIFIED**: Force all data to be read as text (raw: false)
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
                     
                     if (jsonData.length < 2) {
                         alert('File Excel không có dữ liệu!');
@@ -825,15 +826,52 @@
             };
         }
 
+        // **MODIFIED**: More robust date parsing function
         function parseBirthDate(dateValue) {
             if (!dateValue) return '';
-            if (typeof dateValue === 'number') {
-                const date = new Date(Math.round((dateValue - 25569) * 86400 * 1000));
-                return date.toISOString().split('T')[0];
+            const dateStr = String(dateValue).trim();
+
+            let day, month, year;
+            
+            // Try to parse dd/mm/yyyy or dd.mm.yyyy
+            if (dateStr.includes('/') || dateStr.includes('.')) {
+                const parts = dateStr.split(/[/.]/);
+                if (parts.length === 3) {
+                    day = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    year = parseInt(parts[2], 10);
+                }
+            } 
+            // Try to parse yyyy-mm-dd
+            else if (dateStr.includes('-')) {
+                const parts = dateStr.split('-');
+                 if (parts.length === 3) {
+                    year = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    day = parseInt(parts[2], 10);
+                }
             }
-            const date = new Date(dateValue);
-            return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : '';
+
+            if (day && month && year) {
+                if (year < 100) year += 2000; // Handle yy format
+                if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
+                    return ''; // Invalid date components
+                }
+                const monthStr = String(month).padStart(2, '0');
+                const dayStr = String(day).padStart(2, '0');
+                return `${year}-${monthStr}-${dayStr}`;
+            }
+
+            // Fallback for Excel's numeric date (which shouldn't happen with raw:false, but good to have)
+            const numericDate = Number(dateValue);
+            if (!isNaN(numericDate) && numericDate > 1) {
+                 const date = new Date(Math.round((numericDate - 25569) * 86400 * 1000));
+                 return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : '';
+            }
+
+            return ''; // Return empty if parsing fails
         }
+
 
         function normalizeGender(value) {
             const str = String(value || '').toLowerCase();
