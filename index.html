@@ -615,7 +615,7 @@
                         window.attendanceRecords = {};
                         saveData(); 
                     }
-                    window.students.sort((a, b) => a.class.localeCompare(b.class, 'vi') || a.name.localeCompare(b.name, 'vi'));
+                    window.sortStudents();
                     updateAllUI();
                 }, (error) => {
                     console.error("Error listening to data:", error);
@@ -752,6 +752,37 @@
                 notification.style.transform = 'translateY(-20px)';
             }, duration);
         }
+        
+        // --- STUDENT SORTING LOGIC ---
+        function getSortableName(name) {
+            const parts = name.trim().split(/\s+/);
+            if (parts.length <= 1) {
+                return { lastName: name, firstName: '' };
+            }
+            const lastName = parts.pop();
+            const firstName = parts.join(' ');
+            return { lastName, firstName };
+        }
+
+        window.sortStudents = function() {
+            window.students.sort((a, b) => {
+                const classCompare = a.class.localeCompare(b.class, 'vi');
+                if (classCompare !== 0) {
+                    return classCompare;
+                }
+                
+                const nameA = getSortableName(a.name);
+                const nameB = getSortableName(b.name);
+                
+                const lastNameCompare = nameA.lastName.localeCompare(nameB.lastName, 'vi');
+                if (lastNameCompare !== 0) {
+                    return lastNameCompare;
+                }
+                
+                return nameA.firstName.localeCompare(nameB.firstName, 'vi');
+            });
+        }
+
 
         // --- EXCEL IMPORT/EXPORT ---
         window.handleExcelUpload = function(event) {
@@ -918,7 +949,7 @@
                 }
             });
             
-            window.students.sort((a, b) => a.class.localeCompare(b.class, 'vi') || a.name.localeCompare(b.name, 'vi'));
+            window.sortStudents();
             window.autoSave();
             
             document.getElementById('excelFile').value = '';
@@ -974,7 +1005,7 @@
 
 
             window.students.push({ id: Date.now(), name, class: studentClass, birthDate, gender, type });
-            window.students.sort((a, b) => a.class.localeCompare(b.class, 'vi') || a.name.localeCompare(b.name, 'vi'));
+            window.sortStudents();
             clearStudentForm();
             window.autoSave();
         }
