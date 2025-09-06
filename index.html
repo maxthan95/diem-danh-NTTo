@@ -856,21 +856,27 @@
                 return;
             }
             
-            let addedCount = 0, duplicateCount = 0;
+            let addedCount = 0, duplicateCount = 0, updatedCount = 0;
             window.excelData.forEach(studentData => {
-                if (!studentData.name || !studentData.class) return;
-                // **CORRECTED DUPLICATE LOGIC**: Check name, class, AND birthDate
-                const isDuplicate = window.students.some(s => 
+                if (!studentData.name || !studentData.class || !studentData.birthDate) return;
+
+                const existingStudentIndex = window.students.findIndex(s => 
                     s.name.toLowerCase() === studentData.name.toLowerCase() && 
                     s.class.toLowerCase() === studentData.class.toLowerCase() &&
                     s.birthDate === studentData.birthDate
                 );
                 
-                if (!isDuplicate) {
+                if (existingStudentIndex !== -1) {
+                    const existingStudent = window.students[existingStudentIndex];
+                    if (studentData.type === 'Bán trú' && existingStudent.type !== 'Bán trú') {
+                        window.students[existingStudentIndex].type = 'Bán trú';
+                        updatedCount++;
+                    } else {
+                        duplicateCount++;
+                    }
+                } else {
                     window.students.push({ id: Date.now() + Math.random(), ...studentData });
                     addedCount++;
-                } else {
-                    duplicateCount++;
                 }
             });
             
@@ -881,7 +887,7 @@
             window.excelData = [];
             document.getElementById('importStatus').textContent = '';
             
-            alert(`✅ Nhập thành công ${addedCount} học sinh.\n⚠️ Bỏ qua ${duplicateCount} học sinh trùng lặp (trùng tên, lớp và ngày sinh).`);
+            alert(`✅ Nhập thành công ${addedCount} học sinh.\n🔄 Cập nhật ${updatedCount} học sinh thành "Bán trú".\n⚠️ Bỏ qua ${duplicateCount} học sinh trùng lặp.`);
         }
 
         window.downloadExcelTemplate = function() {
@@ -906,6 +912,28 @@
                 alert('Vui lòng điền đầy đủ thông tin!');
                 return;
             }
+
+            const existingStudentIndex = window.students.findIndex(s => 
+                s.name.toLowerCase() === name.toLowerCase() && 
+                s.class.toLowerCase() === studentClass.toLowerCase() &&
+                s.birthDate === birthDate
+            );
+
+            if (existingStudentIndex !== -1) {
+                const existingStudent = window.students[existingStudentIndex];
+                if (type === 'Bán trú' && existingStudent.type !== 'Bán trú') {
+                    if (confirm(`Học sinh này đã tồn tại với loại "Không bán trú". Bạn có muốn cập nhật thành "Bán trú" không?`)) {
+                        window.students[existingStudentIndex].type = 'Bán trú';
+                        clearStudentForm();
+                        window.autoSave();
+                        alert('Cập nhật thành công!');
+                    }
+                } else {
+                    alert('Học sinh này đã tồn tại trong danh sách!');
+                }
+                return;
+            }
+
 
             window.students.push({ id: Date.now(), name, class: studentClass, birthDate, gender, type });
             window.students.sort((a, b) => a.class.localeCompare(b.class, 'vi') || a.name.localeCompare(b.name, 'vi'));
