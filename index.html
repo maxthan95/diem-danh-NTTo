@@ -175,6 +175,12 @@
             gap: 8px;
             width: 100%; /* Make buttons full width on mobile */
         }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
 
         .btn-primary:hover {
             transform: translateY(-2px);
@@ -189,26 +195,40 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
 
-        .student-list h3 {
+        .student-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
             color: white;
-            padding: 20px;
+            padding: 15px 20px;
+        }
+        
+        .student-list-header h3 {
             margin: 0;
             font-size: 1.3rem;
         }
+
 
         .student-item {
             padding: 15px; /* Adjusted padding */
             border-bottom: 1px solid #e9ecef;
             display: grid;
-            grid-template-columns: 1fr; /* Single column layout for mobile */
-            gap: 15px; /* Gap between info and controls */
+            grid-template-columns: auto 1fr; /* Checkbox and content */
+            gap: 15px; 
             align-items: center;
             transition: all 0.3s ease;
         }
 
         .student-item:hover {
             background: #f8f9fa;
+        }
+        
+        .student-item-content {
+            display: grid;
+            grid-template-columns: 1fr; /* Single column layout for mobile */
+            gap: 15px; /* Gap between info and controls */
+            align-items: center;
         }
 
         .student-info {
@@ -332,7 +352,7 @@
             .filter-row {
                 grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Multi-column layout */
             }
-            .student-item {
+            .student-item-content {
                  grid-template-columns: 1fr auto; /* Two columns for info and controls */
                  gap: 20px;
             }
@@ -427,7 +447,10 @@
             </div>
 
             <div class="student-list">
-                <h3>📋 Danh sách học sinh</h3>
+                <div class="student-list-header">
+                    <h3>📋 Danh sách học sinh</h3>
+                    <button class="btn btn-danger" style="width: auto; padding: 8px 15px;" onclick="deleteSelectedStudents()">🗑️ Xóa đã chọn</button>
+                </div>
                 <div id="studentsList"></div>
             </div>
         </div>
@@ -816,7 +839,12 @@
             let addedCount = 0, duplicateCount = 0;
             window.excelData.forEach(studentData => {
                 if (!studentData.name || !studentData.class) return;
-                const isDuplicate = window.students.some(s => s.name.toLowerCase() === studentData.name.toLowerCase() && s.class.toLowerCase() === studentData.class.toLowerCase());
+                // **MODIFIED DUPLICATE LOGIC**: Check name, class, AND birthDate
+                const isDuplicate = window.students.some(s => 
+                    s.name.toLowerCase() === studentData.name.toLowerCase() && 
+                    s.class.toLowerCase() === studentData.class.toLowerCase() &&
+                    s.birthDate === studentData.birthDate
+                );
                 
                 if (!isDuplicate) {
                     window.students.push({ id: Date.now() + Math.random(), ...studentData });
@@ -833,7 +861,7 @@
             window.excelData = [];
             document.getElementById('importStatus').textContent = '';
             
-            alert(`✅ Nhập thành công ${addedCount} học sinh.\n⚠️ Bỏ qua ${duplicateCount} học sinh trùng lặp.`);
+            alert(`✅ Nhập thành công ${addedCount} học sinh.\n⚠️ Bỏ qua ${duplicateCount} học sinh trùng lặp (trùng tên, lớp và ngày sinh).`);
         }
 
         window.downloadExcelTemplate = function() {
@@ -882,19 +910,39 @@
 
             container.innerHTML = window.students.map(student => `
                 <div class="student-item">
-                    <div class="student-info">
-                        <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
-                        <div class="student-detail"><strong>Lớp:</strong><span>${student.class}</span></div>
-                        <div class="student-detail"><strong>Ngày sinh:</strong><span>${formatDate(student.birthDate)}</span></div>
-                        <div class="student-detail"><strong>Loại:</strong><span>${student.type}</span></div>
-                    </div>
-                    <div class="attendance-controls">
-                        <button class="btn" onclick="editStudent(${student.id})">✏️ Sửa</button>
-                        <button class="btn" style="background: #dc3545; color: white;" onclick="deleteStudent(${student.id})">🗑️ Xóa</button>
+                    <input type="checkbox" class="student-checkbox" data-id="${student.id}" style="transform: scale(1.5);">
+                    <div class="student-item-content">
+                        <div class="student-info">
+                            <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
+                            <div class="student-detail"><strong>Lớp:</strong><span>${student.class}</span></div>
+                            <div class="student-detail"><strong>Ngày sinh:</strong><span>${formatDate(student.birthDate)}</span></div>
+                            <div class="student-detail"><strong>Loại:</strong><span>${student.type}</span></div>
+                        </div>
+                        <div class="attendance-controls">
+                            <button class="btn" onclick="editStudent(${student.id})">✏️ Sửa</button>
+                            <button class="btn btn-danger" onclick="deleteStudent(${student.id})">🗑️ Xóa</button>
+                        </div>
                     </div>
                 </div>
             `).join('');
         }
+        
+        window.deleteSelectedStudents = function() {
+            if (!checkAdminPassword()) return;
+            
+            const selectedCheckboxes = document.querySelectorAll('.student-checkbox:checked');
+            if (selectedCheckboxes.length === 0) {
+                alert('Vui lòng chọn ít nhất một học sinh để xóa.');
+                return;
+            }
+
+            if (confirm(`Bạn có chắc chắn muốn xóa ${selectedCheckboxes.length} học sinh đã chọn?`)) {
+                const idsToDelete = Array.from(selectedCheckboxes).map(cb => parseFloat(cb.dataset.id));
+                window.students = window.students.filter(s => !idsToDelete.includes(s.id));
+                window.autoSave();
+            }
+        }
+
 
         window.deleteStudent = function(id) {
             if (!checkAdminPassword()) return;
@@ -969,19 +1017,21 @@
                 const status = record.status || 'present';
                 return `
                     <div class="student-item">
-                        <div class="student-info">
-                            <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
-                            <div class="student-detail"><strong>Lớp:</strong><span>${student.class}</span></div>
-                            <div class="student-detail"><strong>Ngày sinh:</strong><span>${formatDate(student.birthDate)}</span></div>
-                            <div class="student-detail"><strong>Trạng thái:</strong>
-                                <span class="attendance-status ${getStatusClass(status)}">${getStatusText(status)}</span>
+                         <div class="student-item-content">
+                            <div class="student-info">
+                                <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
+                                <div class="student-detail"><strong>Lớp:</strong><span>${student.class}</span></div>
+                                <div class="student-detail"><strong>Ngày sinh:</strong><span>${formatDate(student.birthDate)}</span></div>
+                                <div class="student-detail"><strong>Trạng thái:</strong>
+                                    <span class="attendance-status ${getStatusClass(status)}">${getStatusText(status)}</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="attendance-controls">
-                            <button class="btn" style="background-color:#28a745; color:white" onclick="markAttendance(${student.id}, 'present')">✅ Có mặt</button>
-                            <button class="btn" style="background: #ffc107; color: black;" onclick="markAttendance(${student.id}, 'late')">⏰ Muộn</button>
-                            <button class="btn" style="background: #6c757d; color: white;" onclick="markAttendance(${student.id}, 'absent_excused')">📋 Vắng CP</button>
-                            <button class="btn" style="background: #dc3545; color: white;" onclick="markAttendance(${student.id}, 'absent_unexcused')">❌ Vắng KP</button>
+                            <div class="attendance-controls">
+                                <button class="btn" style="background-color:#28a745; color:white" onclick="markAttendance(${student.id}, 'present')">✅ Có mặt</button>
+                                <button class="btn" style="background: #ffc107; color: black;" onclick="markAttendance(${student.id}, 'late')">⏰ Muộn</button>
+                                <button class="btn" style="background: #6c757d; color: white;" onclick="markAttendance(${student.id}, 'absent_excused')">📋 Vắng CP</button>
+                                <button class="btn" style="background: #dc3545; color: white;" onclick="markAttendance(${student.id}, 'absent_unexcused')">❌ Vắng KP</button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1094,11 +1144,13 @@
                 const status = record.status || 'present';
                 return `
                     <div class="student-item">
-                        <div class="student-info">
-                            <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
-                             <div class="student-detail"><strong>Lớp:</strong><span>${student.class}</span></div>
-                            <div class="student-detail"><strong>Trạng thái:</strong>
-                                <span class="attendance-status ${getStatusClass(status)}">${getStatusText(status)}</span>
+                         <div class="student-item-content">
+                            <div class="student-info">
+                                <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
+                                 <div class="student-detail"><strong>Lớp:</strong><span>${student.class}</span></div>
+                                <div class="student-detail"><strong>Trạng thái:</strong>
+                                    <span class="attendance-status ${getStatusClass(status)}">${getStatusText(status)}</span>
+                                </div>
                             </div>
                         </div>
                     </div>`;
@@ -1130,12 +1182,14 @@
                 const student = data.student;
                 return `
                     <div class="student-item">
-                        <div class="student-info">
-                            <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
-                            <div class="student-detail"><strong>Có mặt:</strong><span style="color: #28a745;">${data.present}</span></div>
-                            <div class="student-detail"><strong>Muộn:</strong><span style="color: #ffc107;">${data.late}</span></div>
-                            <div class="student-detail"><strong>Vắng KP:</strong><span style="color: #dc3545;">${data.absent_unexcused}</span></div>
-                            <div class="student-detail"><strong>Vắng CP:</strong><span style="color: #6c757d;">${data.absent_excused}</span></div>
+                        <div class="student-item-content">
+                            <div class="student-info">
+                                <div class="student-detail"><strong>Họ và tên:</strong><span>${student.name}</span></div>
+                                <div class="student-detail"><strong>Có mặt:</strong><span style="color: #28a745;">${data.present}</span></div>
+                                <div class="student-detail"><strong>Muộn:</strong><span style="color: #ffc107;">${data.late}</span></div>
+                                <div class="student-detail"><strong>Vắng KP:</strong><span style="color: #dc3545;">${data.absent_unexcused}</span></div>
+                                <div class="student-detail"><strong>Vắng CP:</strong><span style="color: #6c757d;">${data.absent_excused}</span></div>
+                            </div>
                         </div>
                     </div>`;
             }).join('');
