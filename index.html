@@ -1229,6 +1229,7 @@
 
             document.getElementById('dailyStatsGrid').innerHTML = `
                 <div class="stats-card ${activeFilterClass('all')}" onclick="filterDailyStatsByStatus('all')"><h4>Tổng số</h4><div class="number">${stats.total}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_total')}" onclick="filterDailyStatsByStatus('boarding_total')"><h4>Tổng số Bán trú</h4><div class="number" style="color: #667eea;">${stats.boarding_total}</div></div>
                 <div class="stats-card ${activeFilterClass('present')}" onclick="filterDailyStatsByStatus('present')"><h4>Có mặt</h4><div class="number" style="color: #28a745;">${stats.present}</div></div>
                 <div class="stats-card ${activeFilterClass('late')}" onclick="filterDailyStatsByStatus('late')"><h4>Đi muộn</h4><div class="number" style="color: #ffc107;">${stats.late}</div></div>
                 <div class="stats-card ${activeFilterClass('absent_total')}" onclick="filterDailyStatsByStatus('absent_total')"><h4>Tổng vắng</h4><div class="number">${stats.absent_total}</div></div>
@@ -1255,6 +1256,8 @@
                             return status === dailyStatsFilterStatus;
                         case 'absent_total':
                             return status === 'absent_unexcused' || status === 'absent_excused';
+                        case 'boarding_total':
+                             return student.type === 'Bán trú';
                         case 'boarding_absent_unexcused':
                             return student.type === 'Bán trú' && status === 'absent_unexcused';
                         case 'boarding_absent_excused':
@@ -1365,7 +1368,8 @@
 
         function calculateDayStats(dayRecords, studentList) {
             const stats = { 
-                total: studentList.length, 
+                total: studentList.length,
+                boarding_total: 0,
                 present: 0, 
                 late: 0, 
                 absent_unexcused: 0, 
@@ -1381,6 +1385,7 @@
                     stats[status]++;
                 }
                 if (student.type === 'Bán trú') {
+                    stats.boarding_total++;
                     if (status === 'absent_unexcused') {
                         stats.boarding_absent_unexcused++;
                     } else if (status === 'absent_excused') {
@@ -1492,6 +1497,7 @@
                 [],
                 ["Hạng mục", "Số lượng"],
                 ["Tổng số học sinh", stats.total],
+                ["Tổng số HS Bán trú", stats.boarding_total],
                 ["Có mặt", stats.present],
                 ["Đi muộn", stats.late],
                 ["Vắng không phép (KP)", stats.absent_unexcused],
