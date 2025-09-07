@@ -1177,7 +1177,7 @@
         }
 
         window.markAllPresent = function() {
-            if (!checkAdminPassword()) return; // Added this line for security
+            if (!checkAdminPassword()) return;
             const selectedDate = document.getElementById('attendanceDate').value;
             const selectedClass = document.getElementById('classFilter').value;
 
@@ -1201,10 +1201,6 @@
                     timestamp: timestamp
                 };
             });
-            
-            window.autoSave();
-            alert(`Đã điểm danh tất cả ${studentsToMark.length} học sinh có mặt!`);
-        }
             
             window.autoSave();
             alert(`Đã điểm danh tất cả ${studentsToMark.length} học sinh có mặt!`);
@@ -1591,4 +1587,3 @@
     </script>
 </body>
 </html>
-
