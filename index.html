@@ -606,14 +606,10 @@
                         window.students = data.students || [];
                         window.attendanceRecords = data.attendanceRecords || {};
                     } else {
-                        // Initialize with sample data if document doesn't exist
-                        window.students = [
-                            { id: 1, name: "Nguyễn Văn An", class: "6A1", birthDate: "2011-03-15", gender: "Nam", type: "Bán trú" },
-                            { id: 2, name: "Trần Thị Bình", class: "6A1", birthDate: "2011-05-20", gender: "Nữ", type: "Không bán trú" },
-                            { id: 3, name: "Lê Minh Cường", class: "6A2", birthDate: "2011-07-10", gender: "Nam", type: "Bán trú" }
-                        ];
+                        // If the document doesn't exist, start with empty data.
+                        // This prevents overwriting data with sample data.
+                        window.students = [];
                         window.attendanceRecords = {};
-                        saveData(); 
                     }
                     window.sortStudents();
                     updateAllUI();
