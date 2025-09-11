@@ -499,6 +499,15 @@
                 <button class="btn btn-primary" onclick="addStudent()">➕ Thêm học sinh</button>
             </div>
 
+            <!-- NEW: Class filter for student management -->
+            <div class="form-section" style="border-left-color: #56ab2f;">
+                <h3 style="margin-bottom: 15px;">Lọc danh sách học sinh</h3>
+                <div class="form-group">
+                    <label for="studentManagementClassFilter">Chọn lớp để hiển thị và chỉnh sửa</label>
+                    <select id="studentManagementClassFilter" onchange="displayStudents()"></select>
+                </div>
+            </div>
+
             <div class="student-list">
                 <div class="student-list-header">
                     <h3>📋 Danh sách học sinh</h3>
@@ -792,12 +801,12 @@
         };
         
         window.toggleSelectAll = function(checked) {
-            document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = checked);
+            document.querySelectorAll('#studentsList .student-checkbox').forEach(cb => cb.checked = checked);
         };
 
         window.deleteSelectedStudents = function() {
             if (!checkAdminPassword()) return;
-            const selectedIds = Array.from(document.querySelectorAll('.student-checkbox:checked')).map(cb => parseFloat(cb.dataset.id));
+            const selectedIds = Array.from(document.querySelectorAll('#studentsList .student-checkbox:checked')).map(cb => parseFloat(cb.dataset.id));
             if (selectedIds.length === 0) {
                 alert('Vui lòng chọn học sinh để xóa.');
                 return;
@@ -810,12 +819,21 @@
 
         window.displayStudents = function() {
             const container = document.getElementById('studentsList');
+            const classFilterElement = document.getElementById('studentManagementClassFilter');
+            const selectedClass = classFilterElement ? classFilterElement.value : 'all';
+
             document.getElementById('selectAllCheckbox').checked = false; 
-            if (window.students.length === 0) {
-                container.innerHTML = `<div class="empty-state"><h3>Chưa có học sinh nào.</h3></div>`;
+
+            let studentsToDisplay = window.students;
+            if (selectedClass && selectedClass !== 'all') {
+                studentsToDisplay = window.students.filter(s => s.class === selectedClass);
+            }
+
+            if (studentsToDisplay.length === 0) {
+                container.innerHTML = `<div class="empty-state"><h3>Chưa có học sinh nào${selectedClass !== 'all' ? ' trong lớp này' : ''}.</h3></div>`;
                 return;
             }
-            container.innerHTML = window.students.map(student => `
+            container.innerHTML = studentsToDisplay.map(student => `
                 <div class="student-item">
                     <input type="checkbox" class="student-checkbox" data-id="${student.id}" style="transform: scale(1.5);">
                     <div class="student-item-content">
@@ -907,13 +925,19 @@
 
         // --- ATTENDANCE TRACKING ---
         window.populateClassFilter = function() {
-            const filters = [document.getElementById('classFilter'), document.getElementById('dailyStatsClassFilter')];
+            const filters = [
+                document.getElementById('classFilter'), 
+                document.getElementById('dailyStatsClassFilter'),
+                document.getElementById('studentManagementClassFilter')
+            ];
             const uniqueClasses = [...new Set(window.students.map(s => s.class))].sort((a,b) => a.localeCompare(b, 'vi'));
             const optionsHtml = '<option value="all">Tất cả các lớp</option>' + uniqueClasses.map(c => `<option value="${c}">${c}</option>`).join('');
             filters.forEach(filter => {
-                const currentVal = filter.value;
-                filter.innerHTML = optionsHtml;
-                if ([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal;
+                if(filter) {
+                    const currentVal = filter.value;
+                    filter.innerHTML = optionsHtml;
+                    if ([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal;
+                }
             });
         }
 
@@ -1276,8 +1300,10 @@
                 'Họ và tên': data.student.name,
                 'Lớp': data.student.class,
                 'Loại học sinh': data.student.type,
-                'Số buổi có mặt': data.present, 'Số buổi đi muộn': data.late,
-                'Số buổi vắng KP': data.absent_unexcused, 'Số buổi vắng CP': data.absent_excused
+                'Số buổi có mặt': data.present,
+                'Số buổi đi muộn': data.late,
+                'Số buổi vắng KP': data.absent_unexcused,
+                'Số buổi vắng CP': data.absent_excused
             }));
             const ws2 = XLSX.utils.json_to_sheet(detailData);
             ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
