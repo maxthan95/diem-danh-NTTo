@@ -834,9 +834,76 @@
         };
         
         // --- EXCEL HANDLING ---
-        window.handleExcelUpload = function(event) { /* ... Your existing excel handling code ... */ };
-        window.importStudentsFromExcel = function() { /* ... Your existing excel handling code ... */ };
-        window.downloadExcelTemplate = function() { /* ... Your existing excel handling code ... */ };
+        window.handleExcelUpload = function(event) {
+             const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+                    
+                    if (jsonData.length < 2) { alert('File Excel không có dữ liệu!'); return; }
+                    
+                    const headers = jsonData[0].map(h => String(h || '').trim().toLowerCase());
+                    const columnMap = {
+                        name: headers.findIndex(h => ['họ và tên', 'họ tên'].some(v => h.includes(v))),
+                        class: headers.findIndex(h => h.includes('lớp')),
+                        birthDate: headers.findIndex(h => h.includes('ngày sinh')),
+                        gender: headers.findIndex(h => h.includes('giới tính')),
+                        type: headers.findIndex(h => ['loại học sinh', 'loại'].some(v => h.includes(v)))
+                    };
+                    
+                    if (Object.values(columnMap).some(index => index === -1)) {
+                        alert('File Excel thiếu các cột bắt buộc: Họ và tên, Lớp, Ngày sinh, Giới tính, Loại học sinh');
+                        return;
+                    }
+                    
+                    window.excelData = jsonData.slice(1).map(row => {
+                        const name = String(row[columnMap.name] || '').trim();
+                        if (!name) return null;
+                        return {
+                            name,
+                            class: String(row[columnMap.class] || '').trim(),
+                            birthDate: formatDate(row[columnMap.birthDate]),
+                            gender: String(row[columnMap.gender] || '').trim(),
+                            type: String(row[columnMap.type] || '').trim()
+                        };
+                    }).filter(Boolean);
+                    
+                    document.getElementById('importStatus').textContent = `✅ Đã tải ${window.excelData.length} học sinh. Nhấn "Nhập" để thêm.`;
+                } catch (error) {
+                    alert('Có lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file!');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        };
+        window.importStudentsFromExcel = function() {
+            if (!checkAdminPassword() || window.excelData.length === 0) return;
+            let addedCount = 0;
+            window.excelData.forEach(studentData => {
+                if (!window.students.some(s => s.name.toLowerCase() === studentData.name.toLowerCase() && s.class.toLowerCase() === studentData.class.toLowerCase())) {
+                    window.students.push({ id: Date.now() + Math.random(), ...studentData });
+                    addedCount++;
+                }
+            });
+            window.sortStudents();
+            window.autoSave();
+            document.getElementById('excelFile').value = '';
+            window.excelData = [];
+            document.getElementById('importStatus').textContent = '';
+            alert(`✅ Nhập thành công ${addedCount} học sinh.`);
+        };
+        window.downloadExcelTemplate = function() {
+            const templateData = [['Họ và tên', 'Lớp', 'Ngày sinh', 'Giới tính', 'Loại học sinh']];
+            const ws = XLSX.utils.aoa_to_sheet(templateData);
+            ws['!cols'] = [{ wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 18 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Danh sách");
+            XLSX.writeFile(wb, "Mau_danh_sach_hoc_sinh.xlsx");
+        };
 
         // --- ATTENDANCE TRACKING ---
         window.populateClassFilter = function() {
@@ -1025,7 +1092,6 @@
             }).join('') || `<div class="empty-state"><p>Không có học sinh phù hợp bộ lọc.</p></div>`);
         }
         
-        // ... (The rest of the JS code for monthly stats and exports)
         function calculateMonthlyStats(year, month) {
             const studentData = {};
             window.students.forEach(s => {
@@ -1127,7 +1193,10 @@
             const data = window.students.map((s, i) => {
                 const record = dayRecords[s.id] || {};
                 return {
-                    'STT': i + 1, 'Họ và tên': s.name, 'Lớp': s.class,
+                    'STT': i + 1,
+                    'Họ và tên': s.name,
+                    'Lớp': s.class,
+                    'Loại học sinh': s.type,
                     'Trạng thái Sáng': getStatusText(record.morning?.status || 'present', true),
                     'TG Sáng': formatTimestamp(record.morning?.timestamp),
                     'Trạng thái Chiều': getStatusText(record.afternoon?.status || 'present', true),
@@ -1135,11 +1204,12 @@
                 };
             });
             const ws = XLSX.utils.json_to_sheet(data);
-            ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 12 }];
+            ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 12 }];
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, `DiemDanh_${selectedDate}`);
             XLSX.writeFile(wb, `Diem_danh_${selectedDate}.xlsx`);
         };
+
         window.exportDailyStatsToExcel = function() {
             if (!checkAdminPassword()) return;
             const selectedDate = document.getElementById('dailyStatsDate').value;
@@ -1165,15 +1235,19 @@
 
             const dayRecords = window.attendanceRecords[selectedDate] || {};
             const detailData = filteredStudents.map((s, i) => ({
-                'STT': i + 1, 'Họ và tên': s.name, 'Lớp': s.class,
+                'STT': i + 1,
+                'Họ và tên': s.name,
+                'Lớp': s.class,
+                'Loại học sinh': s.type,
                 'Trạng thái Sáng': getStatusText(dayRecords[s.id]?.morning?.status || 'present', true),
                 'Trạng thái Chiều': getStatusText(dayRecords[s.id]?.afternoon?.status || 'present', true)
             }));
             const ws2 = XLSX.utils.json_to_sheet(detailData);
-            ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
+            ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
             XLSX.utils.book_append_sheet(wb, ws2, "Chi tiết");
             XLSX.writeFile(wb, `Thong_ke_ngay_${selectedDate}_${selectedClass}.xlsx`);
         };
+        
         window.exportMonthlyStatsToExcel = function() {
             if (!checkAdminPassword()) return;
             const selectedMonth = document.getElementById('monthlyStatsDate').value;
@@ -1198,12 +1272,15 @@
             XLSX.utils.book_append_sheet(wb, ws1, "Tổng quan tháng");
 
             const detailData = Object.values(stats.studentData).map((data, i) => ({
-                'STT': i + 1, 'Họ và tên': data.student.name, 'Lớp': data.student.class,
+                'STT': i + 1,
+                'Họ và tên': data.student.name,
+                'Lớp': data.student.class,
+                'Loại học sinh': data.student.type,
                 'Số buổi có mặt': data.present, 'Số buổi đi muộn': data.late,
                 'Số buổi vắng KP': data.absent_unexcused, 'Số buổi vắng CP': data.absent_excused
             }));
             const ws2 = XLSX.utils.json_to_sheet(detailData);
-            ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+            ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
             XLSX.utils.book_append_sheet(wb, ws2, "Chi tiết tháng");
             XLSX.writeFile(wb, `Thong_ke_thang_${month}_${year}.xlsx`);
         };
