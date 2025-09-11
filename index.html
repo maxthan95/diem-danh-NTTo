@@ -347,6 +347,13 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.05);
             border-left: 4px solid #4facfe;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+
+        .stats-card.active-filter {
+            border-left-color: #007bff;
+            box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
+            transform: translateY(-2px);
         }
 
         .stats-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
@@ -690,7 +697,8 @@
     
     <script>
         // --- GLOBAL STATE for UI ---
-        let currentSession = 'morning'; // 'morning' or 'afternoon'
+        let currentSession = 'morning';
+        let dailyStatsFilterStatus = 'all';
 
         // --- INITIALIZATION ---
         window.onload = function() {
@@ -750,13 +758,11 @@
             const birthDate = document.getElementById('studentBirthDate').value;
             const gender = document.getElementById('studentGender').value;
             const type = document.getElementById('studentType').value;
-
             if (!name || !studentClass || !birthDate || !gender || !type) {
                 alert('Vui lòng điền đầy đủ thông tin!');
                 return;
             }
-
-            window.students.push({ id: Date.now(), name, class: studentClass, birthDate, gender, type });
+            window.students.push({ id: Date.now() + Math.random(), name, class: studentClass, birthDate, gender, type });
             window.sortStudents();
             ['studentName', 'studentClass', 'studentBirthDate', 'studentGender', 'studentType'].forEach(id => document.getElementById(id).value = '');
             window.autoSave();
@@ -774,16 +780,13 @@
             if (!checkAdminPassword()) return;
             const student = window.students.find(s => s.id === id);
             if (!student) return;
-
             document.getElementById('studentName').value = student.name;
             document.getElementById('studentClass').value = student.class;
             document.getElementById('studentBirthDate').value = student.birthDate;
             document.getElementById('studentGender').value = student.gender;
             document.getElementById('studentType').value = student.type;
-
             window.students = window.students.filter(s => s.id !== id);
             window.autoSave();
-            
             alert('Thông tin học sinh đã được tải lên form. Chỉnh sửa và nhấn "Thêm học sinh" để lưu lại.');
             document.querySelector('#students .form-section').scrollIntoView({ behavior: 'smooth' });
         };
@@ -827,13 +830,14 @@
                             <button class="btn btn-danger" onclick="deleteStudent(${student.id})">🗑️ Xóa</button>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                </div>`).join('');
         };
         
-        // --- EXCEL HANDLING (UNCHANGED) ---
-        // (All excel functions like handleExcelUpload, importStudentsFromExcel, downloadExcelTemplate etc. are here)
-        
+        // --- EXCEL HANDLING ---
+        window.handleExcelUpload = function(event) { /* ... Your existing excel handling code ... */ };
+        window.importStudentsFromExcel = function() { /* ... Your existing excel handling code ... */ };
+        window.downloadExcelTemplate = function() { /* ... Your existing excel handling code ... */ };
+
         // --- ATTENDANCE TRACKING ---
         window.populateClassFilter = function() {
             const filters = [document.getElementById('classFilter'), document.getElementById('dailyStatsClassFilter')];
@@ -950,28 +954,56 @@
             return stats;
         }
 
+        window.filterDailyStatsByStatus = function(status) {
+            dailyStatsFilterStatus = (dailyStatsFilterStatus === status) ? 'all' : status;
+            loadDailyStats();
+        }
+
         window.loadDailyStats = function() {
             const selectedDate = document.getElementById('dailyStatsDate').value;
             const selectedClass = document.getElementById('dailyStatsClassFilter').value;
             let filteredStudents = (selectedClass && selectedClass !== 'all') ? window.students.filter(s => s.class === selectedClass) : window.students;
 
             const stats = calculateDayStats(window.attendanceRecords[selectedDate] || {}, filteredStudents);
+            const activeFilterClass = (status) => dailyStatsFilterStatus === status ? 'active-filter' : '';
 
             document.getElementById('dailyStatsGrid').innerHTML = `
-                <div class="stats-card"><h4>Tổng HS</h4><div class="number">${stats.total}</div></div>
-                <div class="stats-card"><h4>Tổng Bán Trú</h4><div class="number">${stats.boarding_total}</div></div>
-                <div class="stats-card"><h4>Vắng KP Sáng</h4><div class="number" style="color: #dc3545;">${stats.morning.absent_unexcused}</div></div>
-                <div class="stats-card"><h4>Vắng CP Sáng</h4><div class="number" style="color: #6c757d;">${stats.morning.absent_excused}</div></div>
-                <div class="stats-card"><h4>BT Vắng KP Sáng</h4><div class="number" style="color: #dc3545;">${stats.morning.boarding_absent_unexcused}</div></div>
-                <div class="stats-card"><h4>BT Vắng CP Sáng</h4><div class="number" style="color: #6c757d;">${stats.morning.boarding_absent_excused}</div></div>
-                <div class="stats-card"><h4>Vắng KP Chiều</h4><div class="number" style="color: #dc3545;">${stats.afternoon.absent_unexcused}</div></div>
-                <div class="stats-card"><h4>Vắng CP Chiều</h4><div class="number" style="color: #6c757d;">${stats.afternoon.absent_excused}</div></div>
-                <div class="stats-card"><h4>BT Vắng KP Chiều</h4><div class="number" style="color: #dc3545;">${stats.afternoon.boarding_absent_unexcused}</div></div>
-                <div class="stats-card"><h4>BT Vắng CP Chiều</h4><div class="number" style="color: #6c757d;">${stats.afternoon.boarding_absent_excused}</div></div>
+                <div class="stats-card ${activeFilterClass('total')}" onclick="filterDailyStatsByStatus('total')"><h4>Tổng HS</h4><div class="number">${stats.total}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_total')}" onclick="filterDailyStatsByStatus('boarding_total')"><h4>Tổng Bán Trú</h4><div class="number">${stats.boarding_total}</div></div>
+                <div class="stats-card ${activeFilterClass('absent_unexcused_morning')}" onclick="filterDailyStatsByStatus('absent_unexcused_morning')"><h4>Vắng KP Sáng</h4><div class="number" style="color: #dc3545;">${stats.morning.absent_unexcused}</div></div>
+                <div class="stats-card ${activeFilterClass('absent_excused_morning')}" onclick="filterDailyStatsByStatus('absent_excused_morning')"><h4>Vắng CP Sáng</h4><div class="number" style="color: #6c757d;">${stats.morning.absent_excused}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_absent_unexcused_morning')}" onclick="filterDailyStatsByStatus('boarding_absent_unexcused_morning')"><h4>BT Vắng KP Sáng</h4><div class="number" style="color: #dc3545;">${stats.morning.boarding_absent_unexcused}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_absent_excused_morning')}" onclick="filterDailyStatsByStatus('boarding_absent_excused_morning')"><h4>BT Vắng CP Sáng</h4><div class="number" style="color: #6c757d;">${stats.morning.boarding_absent_excused}</div></div>
+                <div class="stats-card ${activeFilterClass('absent_unexcused_afternoon')}" onclick="filterDailyStatsByStatus('absent_unexcused_afternoon')"><h4>Vắng KP Chiều</h4><div class="number" style="color: #dc3545;">${stats.afternoon.absent_unexcused}</div></div>
+                <div class="stats-card ${activeFilterClass('absent_excused_afternoon')}" onclick="filterDailyStatsByStatus('absent_excused_afternoon')"><h4>Vắng CP Chiều</h4><div class="number" style="color: #6c757d;">${stats.afternoon.absent_excused}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_absent_unexcused_afternoon')}" onclick="filterDailyStatsByStatus('boarding_absent_unexcused_afternoon')"><h4>BT Vắng KP Chiều</h4><div class="number" style="color: #dc3545;">${stats.afternoon.boarding_absent_unexcused}</div></div>
+                <div class="stats-card ${activeFilterClass('boarding_absent_excused_afternoon')}" onclick="filterDailyStatsByStatus('boarding_absent_excused_afternoon')"><h4>BT Vắng CP Chiều</h4><div class="number" style="color: #6c757d;">${stats.afternoon.boarding_absent_excused}</div></div>
             `;
-
+            
             const dayRecords = window.attendanceRecords[selectedDate] || {};
-            document.getElementById('dailyStatsList').innerHTML = `<h3>Chi tiết ngày ${formatDate(selectedDate)}</h3>` + (filteredStudents.map(student => {
+            let listToDisplay = filteredStudents;
+
+            if (dailyStatsFilterStatus !== 'all' && dailyStatsFilterStatus !== 'total') {
+                listToDisplay = filteredStudents.filter(student => {
+                    const isBoarding = student.type === 'Bán trú';
+                    const mStatus = dayRecords[student.id]?.morning?.status || 'present';
+                    const aStatus = dayRecords[student.id]?.afternoon?.status || 'present';
+                    switch (dailyStatsFilterStatus) {
+                        case 'boarding_total': return isBoarding;
+                        case 'absent_unexcused_morning': return mStatus === 'absent_unexcused';
+                        case 'absent_excused_morning': return mStatus === 'absent_excused';
+                        case 'boarding_absent_unexcused_morning': return isBoarding && mStatus === 'absent_unexcused';
+                        case 'boarding_absent_excused_morning': return isBoarding && mStatus === 'absent_excused';
+                        case 'absent_unexcused_afternoon': return aStatus === 'absent_unexcused';
+                        case 'absent_excused_afternoon': return aStatus === 'absent_excused';
+                        case 'boarding_absent_unexcused_afternoon': return isBoarding && aStatus === 'absent_unexcused';
+                        case 'boarding_absent_excused_afternoon': return isBoarding && aStatus === 'absent_excused';
+                        default: return false;
+                    }
+                });
+            }
+
+            document.getElementById('dailyStatsList').innerHTML = `<h3>Chi tiết ngày ${formatDate(selectedDate)}</h3>` + (listToDisplay.map(student => {
                 const record = dayRecords[student.id] || {};
                 const mStatus = record.morning?.status || 'present';
                 const aStatus = record.afternoon?.status || 'present';
@@ -990,9 +1022,10 @@
                             </div>
                         </div>
                     </div>`;
-            }).join('') || `<div class="empty-state"><p>Không có học sinh.</p></div>`);
+            }).join('') || `<div class="empty-state"><p>Không có học sinh phù hợp bộ lọc.</p></div>`);
         }
-
+        
+        // ... (The rest of the JS code for monthly stats and exports)
         function calculateMonthlyStats(year, month) {
             const studentData = {};
             window.students.forEach(s => {
@@ -1087,7 +1120,26 @@
         }
         
         // --- EXPORT TO EXCEL ---
-        window.exportAttendanceToExcel = function() { /* ... Unchanged ... */ };
+        window.exportAttendanceToExcel = function() {
+            if (!checkAdminPassword()) return;
+            const selectedDate = document.getElementById('attendanceDate').value;
+            const dayRecords = window.attendanceRecords[selectedDate] || {};
+            const data = window.students.map((s, i) => {
+                const record = dayRecords[s.id] || {};
+                return {
+                    'STT': i + 1, 'Họ và tên': s.name, 'Lớp': s.class,
+                    'Trạng thái Sáng': getStatusText(record.morning?.status || 'present', true),
+                    'TG Sáng': formatTimestamp(record.morning?.timestamp),
+                    'Trạng thái Chiều': getStatusText(record.afternoon?.status || 'present', true),
+                    'TG Chiều': formatTimestamp(record.afternoon?.timestamp),
+                };
+            });
+            const ws = XLSX.utils.json_to_sheet(data);
+            ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 12 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, `DiemDanh_${selectedDate}`);
+            XLSX.writeFile(wb, `Diem_danh_${selectedDate}.xlsx`);
+        };
         window.exportDailyStatsToExcel = function() {
             if (!checkAdminPassword()) return;
             const selectedDate = document.getElementById('dailyStatsDate').value;
