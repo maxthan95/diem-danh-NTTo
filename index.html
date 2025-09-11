@@ -499,7 +499,6 @@
                 <button class="btn btn-primary" onclick="addStudent()">➕ Thêm học sinh</button>
             </div>
 
-            <!-- NEW: Class filter for student management -->
             <div class="form-section" style="border-left-color: #56ab2f;">
                 <h3 style="margin-bottom: 15px;">Lọc danh sách học sinh</h3>
                 <div class="form-group">
@@ -673,8 +672,8 @@
 
         // --- UI UPDATE FUNCTION ---
         function updateAllUI() {
-            window.displayStudents();
             window.populateClassFilter();
+            window.displayStudents();
             window.loadAttendanceForDate();
             window.loadDailyStats();
             window.loadMonthlyStats();
@@ -1199,9 +1198,21 @@
 
         function formatDate(dateString) {
             if (!dateString) return 'N/A';
-            const date = new Date(dateString);
-            const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-            return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('vi-VN');
+            try {
+                const date = new Date(dateString);
+                // Adjust for timezone to avoid date shifting
+                const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                const correctedDate = new Date(date.getTime() + userTimezoneOffset);
+                return correctedDate.toLocaleDateString('vi-VN');
+            } catch (e) {
+                // Fallback for different date formats from Excel
+                const parts = String(dateString).split(/[-/]/);
+                if (parts.length === 3) {
+                    // Assuming dd/mm/yyyy or dd-mm-yyyy
+                    return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`;
+                }
+                return dateString;
+            }
         }
         
         function formatTimestamp(isoString) {
@@ -1220,6 +1231,8 @@
                     'STT': i + 1,
                     'Họ và tên': s.name,
                     'Lớp': s.class,
+                    'Giới tính': s.gender,
+                    'Ngày sinh': formatDate(s.birthDate),
                     'Loại học sinh': s.type,
                     'Trạng thái Sáng': getStatusText(record.morning?.status || 'present', true),
                     'TG Sáng': formatTimestamp(record.morning?.timestamp),
@@ -1228,7 +1241,7 @@
                 };
             });
             const ws = XLSX.utils.json_to_sheet(data);
-            ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 12 }];
+            ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 12 }];
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, `DiemDanh_${selectedDate}`);
             XLSX.writeFile(wb, `Diem_danh_${selectedDate}.xlsx`);
@@ -1262,12 +1275,14 @@
                 'STT': i + 1,
                 'Họ và tên': s.name,
                 'Lớp': s.class,
+                'Giới tính': s.gender,
+                'Ngày sinh': formatDate(s.birthDate),
                 'Loại học sinh': s.type,
                 'Trạng thái Sáng': getStatusText(dayRecords[s.id]?.morning?.status || 'present', true),
                 'Trạng thái Chiều': getStatusText(dayRecords[s.id]?.afternoon?.status || 'present', true)
             }));
             const ws2 = XLSX.utils.json_to_sheet(detailData);
-            ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+            ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
             XLSX.utils.book_append_sheet(wb, ws2, "Chi tiết");
             XLSX.writeFile(wb, `Thong_ke_ngay_${selectedDate}_${selectedClass}.xlsx`);
         };
@@ -1299,6 +1314,8 @@
                 'STT': i + 1,
                 'Họ và tên': data.student.name,
                 'Lớp': data.student.class,
+                'Giới tính': data.student.gender,
+                'Ngày sinh': formatDate(data.student.birthDate),
                 'Loại học sinh': data.student.type,
                 'Số buổi có mặt': data.present,
                 'Số buổi đi muộn': data.late,
@@ -1306,7 +1323,7 @@
                 'Số buổi vắng CP': data.absent_excused
             }));
             const ws2 = XLSX.utils.json_to_sheet(detailData);
-            ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+            ws2['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
             XLSX.utils.book_append_sheet(wb, ws2, "Chi tiết tháng");
             XLSX.writeFile(wb, `Thong_ke_thang_${month}_${year}.xlsx`);
         };
